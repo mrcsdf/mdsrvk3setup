@@ -1,0 +1,624 @@
+ # sonarr
+ apiVersion: apps/v1
+ kind: Deployment
+ metadata:
+   name: sonarr-deployment
+   namespace: media
+   labels:
+     app: sonarr
+ spec:
+   replicas: 1
+   selector:
+      matchLabels:
+        app: sonarr
+   template:
+     metadata:
+       labels:
+         app: sonarr
+         name: sonarr
+     spec:
+      containers:
+         - name: sonarr
+           image: linuxserver/sonarr:arm32v7-latest
+           resources:
+             limits:
+               memory: "128Mi"
+               cpu: "500m"
+           ports:
+             - containerPort: 8989
+           env:
+            - name: PUID
+              value: "1000"
+            - name: GUID
+              value: "1000"
+           volumeMounts:
+             - mountPath: /config
+               name: sonarr-config
+             - mountPath: /tv
+               name: sonarr-tv
+      volumes:
+        - name: sonarr-config
+          hostPath:
+            path: /media/tvshows/sonarr/config
+        - name: sonarr-tv
+          hostPath:
+            path: /media/tvshows/sonarr/tv
+---
+ kind: Service
+ apiVersion: v1
+ metadata:
+  name: sonarr-service
+  namespace: media
+ spec:
+  selector:
+    app: sonarr
+  ports:
+  - protocol: TCP
+    port: 8989
+    targetPort: 8989
+  type: NodePort
+---
+ apiVersion: networking.k8s.io/v1
+ kind: Ingress
+ metadata:
+  name: sonarr-ingress
+  namespace: media
+  labels:
+    name: sonarr-ingress
+ spec:
+  rules:
+  - host: "tv.smrtrock.com"
+    http:
+      paths:
+      - pathType: Prefix
+        path: "/"
+        backend:
+          service:
+            name: sonarr-service
+            port: 
+              number: 8989
+---
+# heimdall
+ apiVersion: apps/v1
+ kind: Deployment
+ metadata:
+  name: heimdall-deployment
+  namespace: media
+ spec:
+  selector:
+    matchLabels:
+      app: heimdall
+  template:
+    metadata:
+      labels:
+        app: heimdall
+    spec:
+      containers:
+      - name: heimdall
+        image: linuxserver/heimdall:arm64v8-latest
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 80
+        volumeMounts:
+          - mountPath: /config
+            name: heimdall-config
+      volumes:
+        - name: heimdall-config
+          hostPath:
+            path: /media/tvshows/heimdall/config
+---
+ apiVersion: v1
+ kind: Service
+ metadata:
+  name: heimdall
+  namespace: media
+ spec:
+  selector:
+    app: heimdall
+  ports:
+  - port: 80
+    targetPort: 80
+---
+ apiVersion: networking.k8s.io/v1
+ kind: Ingress
+ metadata:
+  annotations: 
+    kubernetes.io/ingress.class: nginx
+  namespace: "media"
+  name: "heimdall-ingress"
+ spec:
+  rules:
+  - host: "smrtrock.com"
+    http:
+      paths:
+      - pathType: Prefix
+        path: "/"
+        backend:
+          service:
+            name: heimdall
+            port: 
+              number: 80
+---
+# radarr
+ apiVersion: apps/v1
+ kind: Deployment
+ metadata:
+   name: radarr-deployment
+   namespace: media
+   labels:
+     app: radarr
+ spec:
+   replicas: 1
+   selector:
+      matchLabels:
+        app: radarr
+   template:
+     metadata:
+       labels:
+         app: radarr
+         name: radarr
+     spec:
+      containers:
+         - name: radarr
+           image: linuxserver/radarr:arm64v8-latest
+           resources:
+             limits:
+               memory: "128Mi"
+               cpu: "500m"
+           ports:
+             - containerPort: 7878
+           env:
+            - name: PUID
+              value: "1000"
+            - name: GUID
+              value: "1000"
+           volumeMounts:
+             - mountPath: /config
+               name: radarr-config
+             - mountPath: /movies
+               name: movies
+      volumes:
+        - name: radarr-config
+          hostPath:
+            path: /media/movies/radarr/config
+        - name: movies
+          hostPath:
+            path: /media/movies/radarr/movies
+---
+ kind: Service
+ apiVersion: v1
+ metadata:
+  name: radarr-service
+  namespace: media
+ spec:
+  selector:
+    app: radarr
+  ports:
+  - protocol: TCP
+    port: 7878
+    targetPort: 7878
+  type: NodePort
+---
+ apiVersion: networking.k8s.io/v1
+ kind: Ingress
+ metadata:
+  name: radarr-ingress
+  namespace: media
+  labels:
+    name: radarr-ingress
+ spec:
+  rules:
+  - host: "movies.smrtrock.com"
+    http:
+      paths: 
+      - pathType: Prefix
+        path: "/"
+        backend:
+          service:
+            name: "radarr-service"
+            port: 
+              number: 7878
+---
+# nzbget
+ apiVersion: apps/v1
+ kind: Deployment
+ metadata:
+  name: nzbget-deployment
+  namespace: media
+ spec:
+  selector:
+    matchLabels:
+      app: nzbget
+  template:
+    metadata:
+      labels:
+        app: nzbget
+    spec:
+      containers:
+      - name: nzbget
+        image: linuxserver/nzbget:arm64v8-latest
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 6789
+        env:
+            - name: PUID
+              value: "1000"
+            - name: GUID
+              value: "1000"
+        volumeMounts:
+          - mountPath: /config
+            name: nzbget-config
+          - mountPath: /downloads
+            name: downloads
+          - mountPath: /tv
+            name: sonarr-tv
+          - mountPath: /movies
+            name: movies
+      volumes:
+        - name: nzbget-config
+          hostPath:
+            path: /media/tvshows/nzbget/config
+        - name: sonarr-tv
+          hostPath:
+            path: /media/tvshows/sonarr/tv
+        - name: downloads
+          hostPath:
+            path: /media/movies/downloads
+        - name: movies
+          hostPath:
+            path: /media/movies/radarr/movies
+---
+ apiVersion: v1
+ kind: Service
+ metadata:
+  name: nzbget-service
+  namespace: media
+ spec:
+  selector:
+    app: nzbget
+  ports:
+  - port: 6789
+    targetPort: 6789
+---
+ apiVersion: networking.k8s.io/v1
+ kind: Ingress
+ metadata:
+  name: nzbget-ingress
+  namespace: media
+  labels:
+    name: nzbget-ingress
+ spec:
+  rules:
+  - host: "get.smrtrock.com"
+    http:
+      paths: 
+      - pathType: Prefix
+        path: "/"
+        backend:
+          service:
+            name: "nzbget-service"
+            port: 
+              number: 6789    
+---
+# jackett
+ apiVersion: apps/v1
+ kind: Deployment
+ metadata:
+  name: jackett-deployment
+  namespace: media
+ spec:
+  selector:
+    matchLabels:
+      app: jackett
+  template:
+    metadata:
+      labels:
+        app: jackett
+    spec:
+      containers:
+      - name: jackett
+        image: linuxserver/jackett:arm64v8-latest
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 9117
+        volumeMounts:
+          - mountPath: /config
+            name: jackett-config
+      volumes:
+        - name: jackett-config
+          hostPath:
+            path: /media/tvshows/jackett/config
+---
+ apiVersion: v1
+ kind: Service
+ metadata:
+  name: jackett-service
+  namespace: media
+ spec:
+  selector:
+    app: jackett
+  ports:
+  - port: 9117
+    targetPort: 9117
+---
+ apiVersion: networking.k8s.io/v1
+ kind: Ingress
+ metadata:
+  name: jackett-ingress
+  namespace: media
+  labels:
+    name: nzbget-ingress
+ spec:
+  rules:
+  - host: "jackett.smrtrock.com"
+    http:
+      paths: 
+      - pathType: Prefix
+        path: "/"
+        backend:
+          service:
+            name: "jackett-service"
+            port: 
+              number: 9117    
+---
+# nzbget
+ apiVersion: apps/v1
+ kind: Deployment
+ metadata:
+  name: nzbget-deployment
+  namespace: media
+ spec:
+  selector:
+    matchLabels:
+      app: nzbget
+  template:
+    metadata:
+      labels:
+        app: nzbget
+    spec:
+      containers:
+      - name: nzbget
+        image: linuxserver/nzbget:arm64v8-latest
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 6789
+        volumeMounts:
+          - mountPath: /config
+            name: nzbget-config
+          - mountPath: /downloads
+            name: downloads
+          - mountPath: /tv
+            name: sonarr-tv
+          - mountPath: /movies
+            name: movies
+      volumes:
+        - name: nzbget-config
+          hostPath:
+            path: /media/tvshows/nzbget/config
+        - name: sonarr-tv
+          hostPath:
+            path: /media/tvshows/sonarr/tv
+        - name: movies
+          hostPath:
+            path: /media/movies/radarr/movies
+        - name: downloads
+          hostPath:
+            path: /media/tvshows/downloads
+---
+ apiVersion: v1
+ kind: Service
+ metadata:
+  name: nzbget-service
+  namespace: media
+ spec:
+  selector:
+    app: nzbget
+  ports:
+  - port: 6789
+    targetPort: 6789
+---
+ apiVersion: networking.k8s.io/v1
+ kind: Ingress
+ metadata:
+  name: nzbget-ingress
+  namespace: media
+  labels:
+    name: nzbget-ingress
+ spec:
+  rules:
+  - host: "get.smrtrock.com"
+    http:
+      paths: 
+      - pathType: Prefix
+        path: "/"
+        backend:
+          service:
+            name: "nzbget-service"
+            port: 
+              number: 6789
+---
+ # nzbhydra2
+ apiVersion: apps/v1
+ kind: Deployment
+ metadata:
+  name: nzbhydra2-deployment
+  namespace: media
+ spec:
+  selector:
+    matchLabels:
+      app: nzbhydra2
+  template:
+    metadata:
+      labels:
+        app: nzbhydra2
+    spec:
+      containers:
+      - name: nzbhydra2
+        image: linuxserver/nzbhydra2:arm64v8-latest
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 5076
+        env:
+            - name: PUID
+              value: "1000"
+            - name: GUID
+              value: "1000"
+        volumeMounts:
+          - mountPath: /config
+            name: nzbhydra2-config
+          - mountPath: /downloads
+            name: downloads
+      volumes:
+        - name: nzbhydra2-config
+          hostPath:
+            path: /media/tvshows/nzbhydra2/config
+        - name: downloads
+          hostPath:
+            path: /media/tvshows/downloads
+---
+ apiVersion: v1
+ kind: Service
+ metadata:
+  name: nzbhydra2-service
+  namespace: media
+ spec:
+  selector:
+    app: nzbhydra2
+  ports:
+  - port: 5076
+    targetPort: 5076
+---
+ apiVersion: networking.k8s.io/v1
+ kind: Ingress
+ metadata:
+  name: nzbhydra2-ingress
+  namespace: media
+  labels:
+    name: nzbhydra2-ingress
+ spec:
+  rules:
+  - host: "hydra.smrtrock.com"
+    http:
+      paths: 
+      - pathType: Prefix
+        path: "/"
+        backend:
+          service:
+            name: "nzbhydra2-service"
+            port: 
+              number: 5076
+---
+# plex
+ apiVersion: apps/v1
+ kind: Deployment
+ metadata:
+  name: plex-deployment
+  namespace: media
+ spec:
+  selector:
+    matchLabels:
+      app: plex
+  template:
+    metadata:
+      labels:
+        app: plex
+    spec:
+      containers:
+      - name: plex
+        image: linuxserver/plex:arm64v8-latest
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        ports:
+         - containerPort: 32400
+           protocol: TCP
+         - containerPort: 1900
+           protocol: UDP
+         - containerPort: 3005
+           protocol: TCP
+         - containerPort: 5353
+           protocol: UDP
+         - containerPort: 8324
+           protocol: TCP
+         - containerPort: 32410
+           protocol: UDP
+         - containerPort: 32412
+           protocol: UDP
+         - containerPort: 32413
+           protocol: UDP
+         - containerPort: 32414
+           protocol: UDP
+         - containerPort: 32469
+           protocol: TCP
+        volumeMounts:
+          - mountPath: /config
+            name: plex-config
+          - mountPath: /tv
+            name: tv
+          - mountPath: /movies
+            name: movies
+        env:
+          - name: PUID
+            value: "1000"
+          - name: GUID
+            value: "1000"
+          - name: PLEX_CLAIM
+            value: "claim-tsLE5_sHnVQxnBuz-BWH"
+      volumes:
+        - name: plex-config
+          hostPath:
+            path: /media/tvshows/nzbhydra2/config
+        - name: tv
+          hostPath:
+            path: /media/tvshows/sonarr/tv
+        - name: movies
+          hostPath:
+            path: /media/movies/radarr/movies
+---
+ apiVersion: v1
+ kind: Service
+ metadata:
+  name: plex-service
+  namespace: media
+ spec:
+  selector:
+    app: plex
+  ports:
+  - port: 32400
+    targetPort: 32400
+---
+ apiVersion: networking.k8s.io/v1
+ kind: Ingress
+ metadata:
+  name: plex-ingress
+  namespace: media
+  labels:
+    name: plex-ingress
+ spec:
+  rules:
+  - host: "plexk3.smrtrock.com"
+    http:
+      paths: 
+      - pathType: Prefix
+        path: "/"
+        backend:
+          service:
+            name: "plex-service"
+            port: 
+              number: 32400
